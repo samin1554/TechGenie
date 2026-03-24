@@ -47,4 +47,7 @@ class Settings(BaseSettings):
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 
-settings = Settings()
+_settings = Settings()
+# Strip whitespace from database_url (Railway sometimes adds trailing newline)
+_settings.database_url = _settings.database_url.strip()
+settings = _settings
