@@ -1,0 +1,73 @@
+import logging
+
+from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.user import User
+from app.schemas.linkedin import LinkedInOptimizeResponse
+from app.services.github_service import GitHubService
+from app.services.groq_service import GroqService
+from app.services.scoring_service import ScoringService
+
+logger = logging.getLogger(__name__)
+
+
+class LinkedInService:
+    @staticmethod
+    async def optimize(
+        db: AsyncSession,
+        user: User,
+        headline: str,
+        about: str,
+        target_role: str | None = None,
+        github_username: str | None = None,
+    ) -> LinkedInOptimizeResponse:
+        # Optionally fetch GitHub data
+        github_context = None
+        if github_username:
+            try:
+                github_data = await GitHubService.fetch_user_data(
+                    github_username.strip().lower()
+                )
+                top_languages = ScoringService.extract_top_languages(github_data.repos)
+                top_repos = ScoringService.extract_top_repos(github_data.repos)
+
+                repos_summary = ", ".join(
+                    f"{r['name']} ({r.get('language', 'N/A')}, {r.get('stars', 0)} stars)"
+                    for r in top_repos[:5]
+                )
+                github_context = (
+                    f"Languages: {', '.join(top_languages)}\n"
+                    f"Top Projects: {repos_summary}\n"
+                    f"Public repos: {github_data.profile.get('public_repos', 0)}\n"
+                    f"Bio: {github_data.profile.get('bio', '')}"
+                )
+            except Exception:
+                logger.warning("Failed to fetch GitHub data for LinkedIn optimization")
+
+        result = await GroqService.optimize_linkedin(
+            headline=headline,
+            about=about,
+            target_role=target_role,
+            github_context=github_context,
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to optimize LinkedIn profile. Please try again.",
+            )
+
+        # Deduct credit
+        if not user.is_premium and user.credits_remaining > 0:
+            user.credits_remaining -= 1
+        await db.commit()
+
+        return LinkedInOptimizeResponse(
+            optimized_headline=result.get("optimized_headline", headline),
+            optimized_about=result.get("optimized_about", about),
+            keywords=result.get("keywords", []),
+            strength_score=min(100, max(0, int(result.get("strength_score", 50)))),
+            suggestions=result.get("suggestions", []),
+            credits_remaining=user.credits_remaining,
+        )
