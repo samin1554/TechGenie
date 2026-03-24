@@ -8,11 +8,11 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python deps
-COPY backend/pyproject.toml ./
+COPY pyproject.toml ./
 RUN pip install --no-cache-dir .
 
-# Copy backend code
-COPY backend/ .
+# Copy app code
+COPY . .
 
 # Run migrations (non-blocking) then start server
 CMD ["sh", "-c", "alembic upgrade head || echo 'Migration skipped'; exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
