@@ -58,6 +58,9 @@ _origins = [
 ]
 _origins = list({o for o in _origins if o})
 
+# Rate limiter added BEFORE CORS so Starlette processes CORS first (reverse order)
+app.add_middleware(RateLimitMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
@@ -65,8 +68,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.add_middleware(RateLimitMiddleware)
 
 # ── Routes ──────────────────────────────────────────────────────────
 
