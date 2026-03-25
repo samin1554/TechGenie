@@ -14,17 +14,33 @@ stripe.api_key = settings.stripe_secret_key
 
 class BillingService:
     @staticmethod
+    async def _ensure_stripe_customer(db: AsyncSession, user: User) -> str:
+        """Get or create a valid Stripe customer for this user."""
+        if user.stripe_customer_id:
+            try:
+                stripe.Customer.retrieve(user.stripe_customer_id)
+                return user.stripe_customer_id
+            except stripe.error.InvalidRequestError:
+                # Customer doesn't exist (e.g. switched from test to live keys)
+                logger.warning(
+                    "Stripe customer %s not found, creating new one for user %s",
+                    user.stripe_customer_id, user.id,
+                )
+
+        customer = stripe.Customer.create(
+            email=user.email,
+            metadata={"user_id": str(user.id)},
+        )
+        user.stripe_customer_id = customer.id
+        await db.commit()
+        return customer.id
+
+    @staticmethod
     async def create_checkout_session(db: AsyncSession, user: User) -> str:
-        if not user.stripe_customer_id:
-            customer = stripe.Customer.create(
-                email=user.email,
-                metadata={"user_id": str(user.id)},
-            )
-            user.stripe_customer_id = customer.id
-            await db.commit()
+        customer_id = await BillingService._ensure_stripe_customer(db, user)
 
         session = stripe.checkout.Session.create(
-            customer=user.stripe_customer_id,
+            customer=customer_id,
             line_items=[{"price": settings.stripe_price_id, "quantity": 1}],
             mode="subscription",
             success_url=f"{settings.frontend_url}/billing/success",
