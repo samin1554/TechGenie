@@ -11,6 +11,7 @@ class Job(BaseModel):
     description_snippet: str
     apply_url: str
     company_logo: str | None = None
+    source: str = "unknown"
 
 
 class JobsResponse(BaseModel):

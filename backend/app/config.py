@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # RapidAPI (JSearch)
     rapidapi_key: str = ""
 
+    # Adzuna (free tier)
+    adzuna_app_id: str = ""
+    adzuna_app_key: str = ""
+
     # Frontend
     frontend_url: str = "http://localhost:3000"
 
