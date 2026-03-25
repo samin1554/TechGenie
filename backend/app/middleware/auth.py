@@ -1,7 +1,7 @@
 from uuid import UUID
 
 import jwt
-from fastapi import Cookie, Depends, HTTPException
+from fastapi import Cookie, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,9 +11,15 @@ from app.models.user import User
 
 
 async def get_current_user(
+    request: Request,
     token: str | None = Cookie(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> User:
+    # Try Bearer token first (localStorage), then fall back to cookie
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 

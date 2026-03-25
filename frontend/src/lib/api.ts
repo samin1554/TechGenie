@@ -1,10 +1,37 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// Token stored in memory + localStorage for persistence
+let _token: string | null = null;
+
+export function setToken(token: string | null) {
+  _token = token;
+  if (token) {
+    localStorage.setItem("token", token);
+  } else {
+    localStorage.removeItem("token");
+  }
+}
+
+export function getToken(): string | null {
+  if (!_token && typeof window !== "undefined") {
+    _token = localStorage.getItem("token");
+  }
+  return _token;
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string>),
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_URL}/api/v1${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...options?.headers },
     ...options,
+    headers,
   });
 
   if (!res.ok) {
@@ -22,18 +49,28 @@ export const api = {
   // Auth
   getGitHubRedirect: () => apiFetch<{ redirect_url: string }>("/auth/github"),
   getGoogleRedirect: () => apiFetch<{ redirect_url: string }>("/auth/google"),
-  githubCallback: (code: string, state: string) =>
-    apiFetch<{ access_token: string; user: any }>("/auth/github/callback", {
+  githubCallback: async (code: string, state: string) => {
+    const res = await apiFetch<{ access_token: string; user: any }>("/auth/github/callback", {
       method: "POST",
       body: JSON.stringify({ code, state }),
-    }),
-  googleCallback: (code: string, state: string) =>
-    apiFetch<{ access_token: string; user: any }>("/auth/google/callback", {
+    });
+    setToken(res.access_token);
+    return res;
+  },
+  googleCallback: async (code: string, state: string) => {
+    const res = await apiFetch<{ access_token: string; user: any }>("/auth/google/callback", {
       method: "POST",
       body: JSON.stringify({ code, state }),
-    }),
+    });
+    setToken(res.access_token);
+    return res;
+  },
   getMe: () => apiFetch<any>("/auth/me"),
-  logout: () => apiFetch<any>("/auth/logout", { method: "POST" }),
+  logout: async () => {
+    const res = await apiFetch<any>("/auth/logout", { method: "POST" });
+    setToken(null);
+    return res;
+  },
 
   // Analysis
   analyze: (github_username: string) =>
@@ -49,11 +86,14 @@ export const api = {
 
   // Resume
   parseResume: async (file: File) => {
+    const token = getToken();
     const formData = new FormData();
     formData.append("file", file);
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
     const res = await fetch(`${API_URL}/api/v1/resume/parse`, {
       method: "POST",
-      credentials: "include",
+      headers,
       body: formData,
     });
     if (!res.ok) {
@@ -126,7 +166,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  // Jobs (public)
+  // Jobs
   searchJobs: (params: {
     q: string;
     location?: string;
