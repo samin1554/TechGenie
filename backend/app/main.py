@@ -53,6 +53,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 _origins = [
     settings.frontend_url,
+    "https://techgenie.cc",
+    "https://www.techgenie.cc",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
