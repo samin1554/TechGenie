@@ -79,13 +79,6 @@ export default function LoginPage() {
             >
               Get Started Free
             </button>
-            <Link
-              href="/analyze/torvalds"
-              style={{ padding: "1rem 2.5rem", fontSize: "0.8rem" }}
-              className="bg-transparent text-foreground font-ui font-semibold uppercase tracking-[0.15em] border-2 border-foreground hover:bg-foreground hover:text-background transition-colors duration-150 inline-flex items-center"
-            >
-              See Demo
-            </Link>
           </div>
         </div>
       </section>
